@@ -319,21 +319,11 @@ function PremiumScreen({ userId, onBack, isPremium, onPremiumActivated }) {
     "🔄 Nuevos módulos y mejoras continuas",
   ];
 
-  async function handleSubscribe() {
-    setLoading(true);
-    try {
-      const stripe = await getStripe();
-      const priceId = plan === "launch" ? PRICE_LAUNCH : PRICE_FULL;
-      const { error } = await stripe.redirectToCheckout({
-        lineItems: [{ price: priceId, quantity: 1 }],
-        mode: "subscription",
-        successUrl: `${window.location.origin}?premium=true&session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${window.location.origin}?premium=cancelled`,
-        customerEmail: (await supabase.auth.getUser()).data.user?.email,
-      });
-      if (error) console.error(error);
-    } catch (e) { console.error(e); }
-    setLoading(false);
+  function handleSubscribe() {
+    const url = plan === "launch"
+      ? "https://buy.stripe.com/test_8x24gAaQq60N0PTeGw7Re00"
+      : "https://buy.stripe.com/test_eVqdRa0bMexj8ilbuk7Re01";
+    window.location.href = url;
   }
 
   // Check for premium activation on return from Stripe
