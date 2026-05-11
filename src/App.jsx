@@ -292,38 +292,141 @@ function Onboarding({ onDone }) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function RingProgress({ value, max, color, size = 80, stroke = 8, children }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min(value / max, 1);
+  const offset = circ * (1 - pct);
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)", position: "absolute" }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 0.8s ease" }} />
+      </svg>
+      <div className="relative z-10 text-center">{children}</div>
+    </div>
+  );
+}
+
 function Dashboard({ user, goTo }) {
-  const [frase, setFrase] = useState("Generando tu dosis diaria...");
+  const [frase, setFrase] = useState("");
   const hora = new Date().getHours();
   const sal = hora < 12 ? "Buenos días" : hora < 20 ? "Buenas tardes" : "Buenas noches";
-  const mods = ALL_MODULES.filter(m => user.modulos.includes(m.id));
+
+  // Read live data from localStorage
+  const habits = JSON.parse(localStorage.getItem("lo_hab") || "{}");
+  const habitsDone = Object.values(habits).filter(Boolean).length;
+  const habitsTotal = Math.max(Object.keys(habits).length, 1);
+
+  const fin = JSON.parse(localStorage.getItem("lo_fin") || "{}");
+  const ahorros = fin.ahorros || parseInt(user.dinero) || 0;
+  const ingresos = fin.ingresos || 0;
+
+  const cals = parseInt(localStorage.getItem("lo_nut_cals") || "0");
+  const calMeta = 2000;
+
+  const pesoHist = JSON.parse(localStorage.getItem("lo_peso_hist") || "[]");
+  const pesoActual = pesoHist.length > 0 ? pesoHist[pesoHist.length - 1].peso : parseFloat(user.peso) || 70;
+
+  const streak = JSON.parse(localStorage.getItem("lo_hab_streak") || "0");
 
   useEffect(() => {
     callAI(`Eres un coach de élite. Genera UNA frase motivacional corta y poderosa para ${user.nombre}, ${user.edad} años, objetivo: ${user.objetivoFisico}. Máximo 2 líneas. Sin hashtags. Original y directa.`,
       [{ role: "user", content: "Frase del día." }]).then(setFrase).catch(() => setFrase("El único momento para empezar siempre fue ahora."));
   }, []);
 
+  const nivelVida = Math.round((habitsDone / habitsTotal) * 100);
+
   return (
     <div className="space-y-5">
-      <div className="pt-1">
-        <p className="text-white/30 text-sm">{sal} 👋</p>
-        <h1 className="text-3xl font-black text-white">{user.nombre}</h1>
-        <p className="text-white/20 text-xs mt-1">Tu sistema operativo de vida · LIFEOS</p>
+      {/* Header */}
+      <div className="pt-1 flex items-center justify-between">
+        <div>
+          <p className="text-white/30 text-sm">{sal} 👋</p>
+          <h1 className="text-2xl font-black text-white">{user.nombre}</h1>
+        </div>
+        <div className="text-right">
+          <div className="text-xs text-white/30 mb-1">🔥 Racha</div>
+          <div className="text-2xl font-black text-amber-400">{streak} días</div>
+        </div>
       </div>
-      <div className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.2), rgba(79,70,229,0.05))", border: "1px solid rgba(124,58,237,0.25)" }}>
-        <div className="flex gap-3"><span className="text-xl">✨</span><p className="text-white/80 text-sm leading-relaxed italic flex-1">{frase}</p></div>
+
+      {/* Anillos de progreso estilo fitness */}
+      <div className="rounded-3xl p-5" style={{ background: "linear-gradient(135deg, rgba(15,15,30,0.9), rgba(20,20,40,0.9))", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="text-xs text-white/30 uppercase tracking-widest mb-4 font-semibold">Progreso de hoy</div>
+        <div className="flex items-center justify-around">
+          <div className="flex flex-col items-center gap-2" onClick={() => goTo("habitos")} style={{ cursor: "pointer" }}>
+            <RingProgress value={habitsDone} max={habitsTotal} color="#a78bfa" size={72} stroke={7}>
+              <span className="text-white font-black text-sm">{Math.round((habitsDone/habitsTotal)*100)}%</span>
+            </RingProgress>
+            <span className="text-white/40 text-xs">Hábitos</span>
+            <span className="text-white text-xs font-bold">{habitsDone}/{habitsTotal}</span>
+          </div>
+          <div className="flex flex-col items-center gap-2" onClick={() => goTo("nutricion")} style={{ cursor: "pointer" }}>
+            <RingProgress value={cals} max={calMeta} color="#4ade80" size={72} stroke={7}>
+              <span className="text-white font-black text-xs">{cals}<br/><span className="text-white/40" style={{fontSize:"8px"}}>kcal</span></span>
+            </RingProgress>
+            <span className="text-white/40 text-xs">Calorías</span>
+            <span className="text-white text-xs font-bold">{calMeta} meta</span>
+          </div>
+          <div className="flex flex-col items-center gap-2" onClick={() => goTo("finanzas")} style={{ cursor: "pointer" }}>
+            <RingProgress value={Math.min(ahorros, 10000)} max={10000} color="#34d399" size={72} stroke={7}>
+              <span className="text-white font-black text-xs">{ahorros > 999 ? (ahorros/1000).toFixed(1)+"k" : ahorros}<span className="text-white/40" style={{fontSize:"8px"}}>€</span></span>
+            </RingProgress>
+            <span className="text-white/40 text-xs">Ahorros</span>
+            <span className="text-white text-xs font-bold">{ahorros}€</span>
+          </div>
+        </div>
+
+        {/* Barra nivel de vida */}
+        <div className="mt-5">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-white/40 text-xs font-semibold uppercase tracking-wider">Nivel de vida</span>
+            <span className="font-black text-sm" style={{ color: nivelVida > 70 ? "#4ade80" : nivelVida > 40 ? "#fbbf24" : "#f87171" }}>{nivelVida}%</span>
+          </div>
+          <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${nivelVida}%`, background: nivelVida > 70 ? "linear-gradient(90deg, #4ade80, #22d3ee)" : nivelVida > 40 ? "linear-gradient(90deg, #fbbf24, #f97316)" : "linear-gradient(90deg, #f87171, #f43f5e)" }} />
+          </div>
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {[["🎯", user.objetivoFisico, "Objetivo"], ["💼", user.trabajo, "Trabajo"], ["⏰", user.horario.split("(")[0].trim(), "Horario"], ["💰", `${user.dinero}€`, "Ahorros"]].map(([ic, v, l]) => (
-          <Card key={l} className="text-center"><div className="text-xl mb-1">{ic}</div><div className="text-white font-bold text-sm truncate">{v}</div><div className="text-white/25 text-xs mt-0.5">{l}</div></Card>
-        ))}
+
+      {/* Frase motivacional */}
+      {frase && (
+        <div className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.15), rgba(79,70,229,0.05))", border: "1px solid rgba(124,58,237,0.2)" }}>
+          <div className="flex gap-3"><span className="text-lg">✨</span><p className="text-white/75 text-sm leading-relaxed italic flex-1">{frase}</p></div>
+        </div>
+      )}
+
+      {/* Stats rápidos */}
+      <div className="grid grid-cols-3 gap-3">
+        <button onClick={() => goTo("entreno")} className="rounded-2xl p-3 text-center active:scale-95 transition-all" style={{ background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.2)" }}>
+          <div className="text-xl mb-1">💪</div>
+          <div className="text-white font-bold text-sm">{pesoActual}kg</div>
+          <div className="text-white/30 text-xs">Peso</div>
+        </button>
+        <button onClick={() => goTo("sueno")} className="rounded-2xl p-3 text-center active:scale-95 transition-all" style={{ background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)" }}>
+          <div className="text-xl mb-1">😴</div>
+          <div className="text-white font-bold text-sm">{user.horario?.split("(")[0]?.trim()?.split(" ")[0] || "—"}</div>
+          <div className="text-white/30 text-xs">Horario</div>
+        </button>
+        <button onClick={() => goTo("finanzas")} className="rounded-2xl p-3 text-center active:scale-95 transition-all" style={{ background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)" }}>
+          <div className="text-xl mb-1">💰</div>
+          <div className="text-white font-bold text-sm">{ingresos > 0 ? `${ingresos}€` : "—"}</div>
+          <div className="text-white/30 text-xs">Ingresos</div>
+        </button>
       </div>
-      <div><Lbl>Tus módulos</Lbl>
-        <div className="grid grid-cols-2 gap-3">
-          {mods.map(mod => (
-            <button key={mod.id} onClick={() => goTo(mod.id)} className="p-4 rounded-2xl text-left transition-all active:scale-95" style={{ background: mod.color + "10", border: `1px solid ${mod.color}25` }}>
-              <span className="text-2xl block mb-2">{mod.icon}</span>
-              <div className="text-white font-bold text-sm">{mod.label}</div>
+
+      {/* Accesos rápidos a módulos activos */}
+      <div>
+        <div className="text-xs text-white/30 uppercase tracking-widest mb-3 font-semibold">Acceso rápido</div>
+        <div className="grid grid-cols-4 gap-2">
+          {ALL_MODULES.filter(m => user.modulos?.includes(m.id)).slice(0, 8).map(mod => (
+            <button key={mod.id} onClick={() => goTo(mod.id)} className="flex flex-col items-center gap-1.5 p-3 rounded-2xl active:scale-95 transition-all"
+              style={{ background: mod.color + "12", border: `1px solid ${mod.color}25` }}>
+              <span className="text-2xl">{mod.icon}</span>
+              <span className="text-white/60 text-xs font-medium text-center leading-tight">{mod.label}</span>
             </button>
           ))}
         </div>
