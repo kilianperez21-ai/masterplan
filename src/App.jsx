@@ -1616,21 +1616,187 @@ function Entreno({ user }) {
 }
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
-function Settings({ user, onReset }) {
+function SettingsModal({ user, onReset, onClose, onUpdateUser }) {
+  const [seccion, setSeccion] = useState("menu");
+  const [editData, setEditData] = useState({ ...user });
+  const [sugerencia, setSugerencia] = useState("");
+  const [sugerenciaEnviada, setSugerenciaEnviada] = useState(false);
+  const [loadingSug, setLoadingSug] = useState(false);
+
+  async function guardarPerfil() {
+    onUpdateUser(editData);
+    if (_currentUserId) {
+      await supabase.from("profiles").update({
+        nombre: editData.nombre, edad: parseInt(editData.edad),
+        peso: parseFloat(editData.peso), altura: parseFloat(editData.altura),
+        objetivo_fisico: editData.objetivoFisico, trabajo: editData.trabajo,
+        horario: editData.horario, dinero: editData.dinero,
+        negocio: editData.negocio, estudia: editData.estudia,
+        pareja: editData.pareja, extra: editData.extra,
+      }).eq("id", _currentUserId);
+    }
+    localStorage.setItem("lo_user", JSON.stringify(editData));
+    setSeccion("menu");
+  }
+
+  async function enviarSugerencia() {
+    if (!sugerencia.trim()) return;
+    setLoadingSug(true);
+    await supabase.from("module_data").upsert({
+      user_id: _currentUserId || "anonymous",
+      module_key: `sugerencia_${Date.now()}`,
+      data: { texto: sugerencia, usuario: user.nombre, fecha: new Date().toISOString() },
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id,module_key" });
+    setSugerenciaEnviada(true);
+    setSugerencia("");
+    setLoadingSug(false);
+  }
+
+  const menuItems = [
+    { icon: "👤", label: "Editar perfil", desc: "Modifica tus datos personales", action: () => setSeccion("perfil") },
+    { icon: "🧩", label: "Mis módulos", desc: "Ver módulos activos", action: () => setSeccion("modulos") },
+    { icon: "💡", label: "Sugerencias", desc: "Pide nuevas funciones o módulos", action: () => setSeccion("sugerencias") },
+    { icon: "🚪", label: "Cerrar sesión", desc: "Salir de tu cuenta", action: onReset, danger: true },
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="py-1"><h2 className="text-xl font-black text-white">Ajustes</h2></div>
-      <Card>
-        <Lbl>Tu perfil</Lbl>
-        {[["Nombre", user.nombre], ["Edad", `${user.edad} años`], ["Cuerpo", `${user.peso}kg · ${user.altura}cm`], ["Objetivo", user.objetivoFisico], ["Trabajo", user.trabajo], ["Horario", user.horario], ["Ahorros", `${user.dinero}€`], ["Negocio", user.negocio], ["Estudios", user.estudia], ["Pareja", user.pareja]].map(([k, v]) => (
-          <div key={k} className="flex justify-between py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}><span className="text-white/30 text-sm">{k}</span><span className="text-white text-sm font-medium">{v}</span></div>
-        ))}
-      </Card>
-      {user.extra && <Card><Lbl>Notas personales</Lbl><p className="text-white/50 text-sm leading-relaxed">{user.extra}</p></Card>}
-      <Card><Lbl>Módulos activos</Lbl><div className="flex flex-wrap gap-2">{ALL_MODULES.filter(m => user.modulos.includes(m.id)).map(m => <span key={m.id} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: m.color + "18", color: m.color, border: `1px solid ${m.color}35` }}>{m.icon} {m.label}</span>)}</div></Card>
-      <Card><Lbl>⚠️ Zona peligrosa</Lbl><p className="text-white/30 text-xs mb-3">Borrará todos tus datos.</p><button onClick={onReset} className="w-full py-3.5 rounded-2xl font-bold text-sm text-red-400" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>Reiniciar LIFEOS</button></Card>
+    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-lg rounded-t-3xl pb-10 pt-2" style={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.1)" }}>
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-4">
+          <div className="w-10 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.2)" }} />
+        </div>
+
+        {/* Menu principal */}
+        {seccion === "menu" && (
+          <div className="px-5 space-y-2">
+            <div className="flex items-center gap-3 mb-5 pb-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
+                {user.nombre?.charAt(0)?.toUpperCase() || "U"}
+              </div>
+              <div>
+                <div className="text-white font-black text-lg">{user.nombre}</div>
+                <div className="text-white/30 text-xs">{user.objetivoFisico} · LIFEOS</div>
+              </div>
+            </div>
+            {menuItems.map((item, i) => (
+              <button key={i} onClick={item.action} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-98 text-left"
+                style={{ background: item.danger ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.04)", border: `1px solid ${item.danger ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.07)"}` }}>
+                <span className="text-2xl">{item.icon}</span>
+                <div className="flex-1">
+                  <div className={`font-bold text-sm ${item.danger ? "text-red-400" : "text-white"}`}>{item.label}</div>
+                  <div className="text-white/30 text-xs mt-0.5">{item.desc}</div>
+                </div>
+                {!item.danger && <span className="text-white/20 text-sm">›</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Editar perfil */}
+        {seccion === "perfil" && (
+          <div className="px-5 space-y-3 max-h-96 overflow-y-auto">
+            <div className="flex items-center gap-3 mb-4">
+              <button onClick={() => setSeccion("menu")} className="text-white/40 hover:text-white text-sm">← Volver</button>
+              <h3 className="text-white font-black">Editar perfil</h3>
+            </div>
+            {[
+              { l: "Nombre", k: "nombre", type: "text" },
+              { l: "Edad", k: "edad", type: "number" },
+              { l: "Peso (kg)", k: "peso", type: "number" },
+              { l: "Altura (cm)", k: "altura", type: "number" },
+              { l: "Ahorros (€)", k: "dinero", type: "number" },
+            ].map(f => (
+              <div key={f.k}>
+                <div className="text-white/30 text-xs mb-1">{f.l}</div>
+                <input type={f.type} value={editData[f.k] || ""} onChange={e => setEditData({ ...editData, [f.k]: e.target.value })}
+                  className="w-full rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }} />
+              </div>
+            ))}
+            {[
+              { l: "Objetivo físico", k: "objetivoFisico", opts: ["Perder peso", "Ganar músculo", "Mantenimiento", "Mejorar rendimiento"] },
+              { l: "Trabajo", k: "trabajo", opts: ["Empleado", "Autónomo", "Emprendedor", "Estudiante", "En paro", "Turnos rotativos"] },
+            ].map(f => (
+              <div key={f.k}>
+                <div className="text-white/30 text-xs mb-1">{f.l}</div>
+                <select value={editData[f.k] || ""} onChange={e => setEditData({ ...editData, [f.k]: e.target.value })}
+                  className="w-full rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none"
+                  style={{ background: "#12121f", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  {f.opts.map(o => <option key={o}>{o}</option>)}
+                </select>
+              </div>
+            ))}
+            <div>
+              <div className="text-white/30 text-xs mb-1">Notas / Info adicional</div>
+              <textarea value={editData.extra || ""} onChange={e => setEditData({ ...editData, extra: e.target.value })}
+                placeholder="Alergias, lesiones, condiciones..." rows={3}
+                className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none resize-none"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }} />
+            </div>
+            <button onClick={guardarPerfil} className="w-full py-3.5 rounded-2xl font-bold text-sm text-white mt-2" style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
+              Guardar cambios ✓
+            </button>
+          </div>
+        )}
+
+        {/* Módulos */}
+        {seccion === "modulos" && (
+          <div className="px-5">
+            <div className="flex items-center gap-3 mb-4">
+              <button onClick={() => setSeccion("menu")} className="text-white/40 hover:text-white text-sm">← Volver</button>
+              <h3 className="text-white font-black">Mis módulos activos</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ALL_MODULES.filter(m => (user.modulos || []).includes(m.id)).map(m => (
+                <span key={m.id} className="px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2"
+                  style={{ background: m.color + "18", color: m.color, border: `1px solid ${m.color}35` }}>
+                  {m.icon} {m.label}
+                </span>
+              ))}
+            </div>
+            <p className="text-white/25 text-xs mt-4">Para cambiar los módulos activos, reinicia la app desde el onboarding.</p>
+          </div>
+        )}
+
+        {/* Sugerencias */}
+        {seccion === "sugerencias" && (
+          <div className="px-5">
+            <div className="flex items-center gap-3 mb-4">
+              <button onClick={() => setSeccion("menu")} className="text-white/40 hover:text-white text-sm">← Volver</button>
+              <h3 className="text-white font-black">Sugerencias</h3>
+            </div>
+            {sugerenciaEnviada ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3">🎉</div>
+                <div className="text-white font-bold text-lg mb-2">¡Gracias por tu sugerencia!</div>
+                <p className="text-white/40 text-sm">La leeremos y la tendremos en cuenta para las próximas actualizaciones.</p>
+                <button onClick={() => setSugerenciaEnviada(false)} className="mt-4 text-violet-400 text-sm">Enviar otra</button>
+              </div>
+            ) : (
+              <>
+                <p className="text-white/40 text-sm mb-4 leading-relaxed">¿Qué módulo te gustaría que añadiésemos? ¿Algo que mejorar? Cuéntanos todo.</p>
+                <textarea value={sugerencia} onChange={e => setSugerencia(e.target.value)}
+                  placeholder="Ej: Me gustaría un módulo de meditación guiada, o que en finanzas pueda añadir inversiones en cripto..."
+                  rows={5} className="w-full rounded-2xl px-4 py-3 text-sm text-white placeholder-white/25 focus:outline-none resize-none mb-3"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }} />
+                <button onClick={enviarSugerencia} disabled={loadingSug || !sugerencia.trim()} className="w-full py-3.5 rounded-2xl font-bold text-sm text-white disabled:opacity-30"
+                  style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
+                  {loadingSug ? "Enviando..." : "Enviar sugerencia 💡"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function Settings({ user, onReset }) {
+  return null; // replaced by modal
 }
 
 // ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
@@ -1723,6 +1889,7 @@ export default function LifeOS() {
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useLS("lo_user", null);
   const [active, setActive] = useState("dashboard");
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1825,10 +1992,11 @@ export default function LifeOS() {
           <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}><span className="text-white font-black text-xs">L</span></div>
           <span className="text-white font-black tracking-widest text-xs">LIFEOS</span>
         </div>
-        <button onClick={() => setActive("settings")} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: CARD, border: `1px solid ${BORDER}` }}><span className="text-sm">⚙️</span></button>
+        <button onClick={() => setShowSettings(true)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: CARD, border: `1px solid ${BORDER}` }}><span className="text-sm">⚙️</span></button>
       </div>
       <div className="px-5 pb-44">{render()}</div>
       <Nav active={active} goTo={setActive} mods={user.modulos} />
+      {showSettings && <SettingsModal user={user} onReset={reset} onClose={() => setShowSettings(false)} onUpdateUser={u => { setUser(u); setShowSettings(false); }} />}
     </div>
   );
 }
