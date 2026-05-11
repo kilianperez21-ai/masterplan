@@ -1,14 +1,42 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
 
 // ─── STORAGE ──────────────────────────────────────────────────────────────────
+// Global user ID for cloud sync
+let _currentUserId = null;
+function setCurrentUserId(id) { _currentUserId = id; }
+
 function useLS(key, def) {
   const [v, setV] = useState(() => {
     try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
     catch { return def; }
   });
-  useEffect(() => { localStorage.setItem(key, JSON.stringify(v)); }, [key, v]);
-  return [v, setV];
+
+  const setValue = useCallback((newVal) => {
+    setV(newVal);
+    // Save to localStorage immediately
+    try { localStorage.setItem(key, JSON.stringify(newVal)); } catch {}
+    // Sync to Supabase in background if user is logged in
+    if (_currentUserId) {
+      supabase.from("module_data")
+        .upsert({ user_id: _currentUserId, module_key: key, data: newVal, updated_at: new Date().toISOString() }, { onConflict: "user_id,module_key" })
+        .then(() => {}).catch(() => {});
+    }
+  }, [key]);
+
+  // Load from Supabase on mount if user is logged in
+  useEffect(() => {
+    if (!_currentUserId) return;
+    supabase.from("module_data").select("data").eq("user_id", _currentUserId).eq("module_key", key).single()
+      .then(({ data: row }) => {
+        if (row?.data !== undefined && row?.data !== null) {
+          setV(row.data);
+          try { localStorage.setItem(key, JSON.stringify(row.data)); } catch {}
+        }
+      }).catch(() => {});
+  }, [key, _currentUserId]);
+
+  return [v, setValue];
 }
 
 // ─── AI ───────────────────────────────────────────────────────────────────────
@@ -1699,10 +1727,13 @@ export default function LifeOS() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user?.id) setCurrentUserId(session.user.id);
       setAuthLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user?.id) setCurrentUserId(session.user.id);
+      else setCurrentUserId(null);
       setAuthLoading(false);
     });
     return () => subscription.unsubscribe();
@@ -1710,6 +1741,7 @@ export default function LifeOS() {
 
   async function handleSignOut() {
     await supabase.auth.signOut();
+    setCurrentUserId(null);
     setSession(null);
     setUser(null);
     localStorage.clear();
@@ -1717,6 +1749,23 @@ export default function LifeOS() {
   }
 
   const reset = () => { handleSignOut(); };
+
+  // Load profile from Supabase if not in localStorage
+  useEffect(() => {
+    if (!session?.user?.id || user) return;
+    supabase.from("profiles").select("*").eq("id", session.user.id).single()
+      .then(({ data }) => {
+        if (data?.nombre) {
+          const profile = {
+            ...data,
+            objetivoFisico: data.objetivo_fisico || "Ganar músculo",
+            modulos: data.modulos || [],
+          };
+          setUser(profile);
+          localStorage.setItem("lo_user", JSON.stringify(profile));
+        }
+      }).catch(() => {});
+  }, [session, user]);
 
   if (authLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: BG }}>
@@ -1730,7 +1779,23 @@ export default function LifeOS() {
   );
 
   if (!session) return <AuthScreen />;
-  if (!user) return <Onboarding onDone={d => { setUser(d); setActive("dashboard"); }} />;
+  if (!user) return <Onboarding onDone={async (d) => {
+    setUser(d);
+    // Save profile to Supabase
+    if (session?.user?.id) {
+      await supabase.from("profiles").upsert({
+        id: session.user.id,
+        nombre: d.nombre, edad: parseInt(d.edad), sexo: d.sexo,
+        peso: parseFloat(d.peso), altura: parseFloat(d.altura),
+        objetivo_fisico: d.objetivoFisico, trabajo: d.trabajo,
+        horario: d.horario, actividad: d.actividad,
+        dinero: d.dinero, negocio: d.negocio,
+        estudia: d.estudia, pareja: d.pareja,
+        modulos: d.modulos, extra: d.extra, plan: "free",
+      });
+    }
+    setActive("dashboard");
+  }} />;
 
   const render = () => {
     switch (active) {
