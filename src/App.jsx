@@ -37,13 +37,13 @@ const ALL_MODULES = [
   { id: "finanzas",      icon: "💰", label: "Finanzas",      color: "#34d399", free: true },
   { id: "entreno",       icon: "💪", label: "Entreno",       color: "#f97316", free: true },
   { id: "sueno",         icon: "😴", label: "Sueño",         color: "#60a5fa", free: true },
-  { id: "negocio",       icon: "💼", label: "Negocio",       color: "#fbbf24", free: false },
-  { id: "estudios",      icon: "📚", label: "Estudios",      color: "#f472b6", free: false },
-  { id: "lectura",       icon: "📖", label: "Lectura",       color: "#fb923c", free: false },
-  { id: "relaciones",    icon: "💑", label: "Relaciones",    color: "#fb7185", free: false },
-  { id: "nutricion",     icon: "🍎", label: "Nutrición",     color: "#4ade80", free: false },
-  { id: "productividad", icon: "🎯", label: "Productividad", color: "#38bdf8", free: false },
-  { id: "bienestar",     icon: "🧘", label: "Bienestar",     color: "#c084fc", free: false },
+  { id: "negocio",       icon: "💼", label: "Negocio",       color: "#fbbf24", free: true },
+  { id: "estudios",      icon: "📚", label: "Estudios",      color: "#f472b6", free: true },
+  { id: "lectura",       icon: "📖", label: "Lectura",       color: "#fb923c", free: true },
+  { id: "relaciones",    icon: "💑", label: "Relaciones",    color: "#fb7185", free: true },
+  { id: "nutricion",     icon: "🍎", label: "Nutrición",     color: "#4ade80", free: true },
+  { id: "productividad", icon: "🎯", label: "Productividad", color: "#38bdf8", free: true },
+  { id: "bienestar",     icon: "🧘", label: "Bienestar",     color: "#c084fc", free: true },
 ];
 
 function buildSP(moduleId, user) {
@@ -115,23 +115,14 @@ function useCloudData(userId, key, defaultVal) {
 }
 
 // ─── AI CHAT ─────────────────────────────────────────────────────────────────
-function AIChat({ sp, color, name, initMsg, isPremium, onUpgrade }) {
+function AIChat({ sp, color, name, initMsg }) {
   const [msgs, setMsgs] = useState(initMsg ? [{ role: "assistant", content: initMsg }] : []);
   const [inp, setInp] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
-  if (!isPremium) return (
-    <Card style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.15), rgba(79,70,229,0.05))", border: "1px solid rgba(124,58,237,0.3)" }}>
-      <div className="text-center py-6">
-        <div className="text-4xl mb-3">🔒</div>
-        <div className="text-white font-bold text-lg mb-1">Asistente IA — Premium</div>
-        <p className="text-white/40 text-sm mb-5">Desbloquea el experto en {name} y todos los módulos avanzados por solo 4,99€/mes.</p>
-        <GoldBtn onClick={onUpgrade} color="#7c3aed">✨ Ver planes Premium</GoldBtn>
-      </div>
-    </Card>
-  );
+
 
   async function send(text) {
     const content = text || inp.trim();
@@ -149,7 +140,7 @@ function AIChat({ sp, color, name, initMsg, isPremium, onUpgrade }) {
       <div className="flex items-center gap-2 mb-3">
         <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: color }} />
         <span className="text-xs font-bold uppercase tracking-widest" style={{ color }}>IA · {name}</span>
-        <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "#7c3aed20", color: "#a78bfa" }}>PREMIUM</span>
+
       </div>
       <div className="h-56 overflow-y-auto flex flex-col gap-2 mb-3 pr-1">
         {msgs.length === 0 && <div className="flex items-center justify-center h-full"><p className="text-white/20 text-xs text-center">Conozco tu perfil completo.<br />Pregúntame lo que necesites.</p></div>}
@@ -303,127 +294,6 @@ function AuthScreen() {
 }
 
 // ─── PREMIUM SCREEN ───────────────────────────────────────────────────────────
-function PremiumScreen({ userId, onBack, isPremium, onPremiumActivated }) {
-  const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState("launch");
-
-  const benefits = [
-    "🤖 Asistentes IA expertos en cada módulo",
-    "🍎 Dieta personalizada generada por IA",
-    "📚 Preguntas de examen diarias con IA",
-    "📖 Recomendaciones de libros y podcasts",
-    "💼 Plan de negocio personalizado con IA",
-    "💑 Terapeuta de pareja IA",
-    "🧘 Meditación y bienestar con IA",
-    "☁️ Datos sincronizados en todos tus dispositivos",
-    "🔄 Nuevos módulos y mejoras continuas",
-  ];
-
-  function handleSubscribe() {
-    const url = plan === "launch"
-      ? "https://buy.stripe.com/test_8x24gAaQq60N0PTeGw7Re00"
-      : "https://buy.stripe.com/test_eVqdRa0bMexj8ilbuk7Re01";
-    window.location.href = url;
-  }
-
-  // Check for premium activation on return from Stripe
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("premium") === "true") {
-      supabase.from("profiles").update({ plan: "premium" }).eq("id", userId).then(() => {
-        window.history.replaceState({}, "", window.location.pathname);
-        onPremiumActivated();
-      });
-    }
-  }, []);
-
-  if (isPremium) return (
-    <div className="space-y-4">
-      <div className="py-1 flex items-center gap-3">
-        <button onClick={onBack} className="text-white/40 hover:text-white">←</button>
-        <h2 className="text-xl font-black text-white">Mi suscripción</h2>
-      </div>
-      <Card style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.2), rgba(79,70,229,0.1))", border: "1px solid rgba(124,58,237,0.4)" }}>
-        <div className="text-center py-4">
-          <div className="text-4xl mb-3">👑</div>
-          <div className="text-white font-black text-xl mb-1">Plan Premium Activo</div>
-          <div className="text-white/40 text-sm">Tienes acceso a todas las funciones de LIFEOS</div>
-        </div>
-      </Card>
-      <Card>
-        <Lbl>Lo que incluye tu plan</Lbl>
-        <div className="space-y-2">
-          {benefits.map((b, i) => <div key={i} className="flex items-center gap-2 text-sm text-white/70"><span className="text-green-400">✓</span>{b}</div>)}
-        </div>
-      </Card>
-      <Card>
-        <Lbl>⚠️ Cancelar suscripción</Lbl>
-        <p className="text-white/30 text-xs mb-3">Para cancelar envíanos un email a hola@golifeos.net y lo gestionamos en menos de 24h.</p>
-        <a href="mailto:hola@golifeos.net?subject=Cancelar suscripción LIFEOS" className="block w-full py-3 rounded-2xl font-bold text-sm text-center text-red-400" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-          Solicitar cancelación
-        </a>
-      </Card>
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="py-1 flex items-center gap-3">
-        <button onClick={onBack} className="text-white/40 hover:text-white">←</button>
-        <h2 className="text-xl font-black text-white">Hazte Premium</h2>
-      </div>
-
-      {/* Plan selector */}
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => setPlan("launch")} className="p-4 rounded-2xl text-left transition-all"
-          style={{ background: plan === "launch" ? "rgba(124,58,237,0.2)" : CARD, border: `2px solid ${plan === "launch" ? "#7c3aed" : BORDER}` }}>
-          <div className="text-xs font-bold text-amber-400 mb-1">🚀 LANZAMIENTO</div>
-          <div className="text-white font-black text-2xl">4,99€<span className="text-sm text-white/40">/mes</span></div>
-          <div className="text-white/40 text-xs mt-1">Solo primeros 100 usuarios</div>
-          {plan === "launch" && <div className="text-violet-400 text-xs mt-2 font-bold">✓ Seleccionado</div>}
-        </button>
-        <button onClick={() => setPlan("full")} className="p-4 rounded-2xl text-left transition-all"
-          style={{ background: plan === "full" ? "rgba(124,58,237,0.2)" : CARD, border: `2px solid ${plan === "full" ? "#7c3aed" : BORDER}` }}>
-          <div className="text-xs font-bold text-white/40 mb-1">ESTÁNDAR</div>
-          <div className="text-white font-black text-2xl">7,99€<span className="text-sm text-white/40">/mes</span></div>
-          <div className="text-white/40 text-xs mt-1">Precio normal</div>
-          {plan === "full" && <div className="text-violet-400 text-xs mt-2 font-bold">✓ Seleccionado</div>}
-        </button>
-      </div>
-
-      <Card>
-        <Lbl>Todo lo que incluye</Lbl>
-        <div className="space-y-2.5">
-          {benefits.map((b, i) => (
-            <div key={i} className="flex items-center gap-3 text-sm">
-              <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(124,58,237,0.3)" }}>
-                <span className="text-violet-300 text-xs font-bold">✓</span>
-              </div>
-              <span className="text-white/70">{b}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <div className="space-y-3">
-        <GoldBtn onClick={handleSubscribe} disabled={loading} color="linear-gradient(135deg, #7c3aed, #4f46e5)">
-          {loading ? "Redirigiendo a pago..." : `✨ Suscribirme por ${plan === "launch" ? "4,99" : "7,99"}€/mes`}
-        </GoldBtn>
-        <p className="text-white/20 text-xs text-center">Pago seguro con Stripe · Cancela cuando quieras</p>
-      </div>
-
-      <Card>
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🆓</span>
-          <div>
-            <div className="text-white font-bold text-sm">Plan Gratuito actual</div>
-            <div className="text-white/30 text-xs">Mentalidad, Finanzas, Entreno y Sueño incluidos</div>
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-}
 
 // ─── ONBOARDING ───────────────────────────────────────────────────────────────
 function Onboarding({ onDone }) {
@@ -464,13 +334,13 @@ function Onboarding({ onDone }) {
       <div><Lbl>Situación sentimental</Lbl><Sel value={d.pareja} onChange={e => u("pareja", e.target.value)}><option>Sin pareja</option><option>En pareja</option><option>Casado/a</option><option>Complicado</option></Sel></div>
     </div>,
     <div key="s4" className="space-y-2">
-      <p className="text-white/30 text-xs mb-3">Activa solo los que quieres. Los marcados con 🔒 requieren Premium.</p>
+      <p className="text-white/30 text-xs mb-3">Activa solo los módulos que quieres usar.</p>
       {ALL_MODULES.map(mod => {
         const on = d.modulos.includes(mod.id);
         return <button key={mod.id} onClick={() => toggleM(mod.id)} className="w-full flex items-center gap-3 p-3.5 rounded-2xl transition-all text-left"
           style={{ background: on ? mod.color + "15" : CARD, border: `1px solid ${on ? mod.color + "50" : BORDER}` }}>
           <span className="text-2xl">{mod.icon}</span>
-          <div className="flex-1"><div className="text-white text-sm font-bold">{mod.label}</div><div className="text-white/30 text-xs">{mod.free ? "✅ Gratis" : "🔒 Premium"}</div></div>
+          <div className="flex-1"><div className="text-white text-sm font-bold">{mod.label}</div></div>
           <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: on ? mod.color : "rgba(255,255,255,0.08)" }}>{on && <span className="text-white text-xs font-bold">✓</span>}</div>
         </button>;
       })}
@@ -509,7 +379,7 @@ function Onboarding({ onDone }) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-function Dashboard({ user, profile, goTo, isPremium }) {
+function Dashboard({ user, profile, goTo }) {
   const [frase, setFrase] = useState("Generando tu dosis diaria...");
   const hora = new Date().getHours();
   const sal = hora < 12 ? "Buenos días" : hora < 20 ? "Buenas tardes" : "Buenas noches";
@@ -527,10 +397,7 @@ function Dashboard({ user, profile, goTo, isPremium }) {
         <h1 className="text-3xl font-black text-white">{profile.nombre}</h1>
         <div className="flex items-center gap-2 mt-1">
           <p className="text-white/20 text-xs">golifeos.net</p>
-          {isPremium
-            ? <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "#7c3aed20", color: "#a78bfa" }}>👑 PREMIUM</span>
-            : <button onClick={() => goTo("premium")} className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>✨ Upgrade — desde 4,99€</button>
-          }
+
         </div>
       </div>
 
@@ -548,47 +415,37 @@ function Dashboard({ user, profile, goTo, isPremium }) {
         <Lbl>Tus módulos</Lbl>
         <div className="grid grid-cols-2 gap-3">
           {mods.map(mod => {
-            const locked = !mod.free && !isPremium;
             return (
-              <button key={mod.id} onClick={() => goTo(locked ? "premium" : mod.id)} className="p-4 rounded-2xl text-left transition-all active:scale-95 relative" style={{ background: mod.color + "10", border: `1px solid ${mod.color}25`, opacity: locked ? 0.7 : 1 }}>
-                {locked && <div className="absolute top-2 right-2 text-xs">🔒</div>}
+              <button key={mod.id} onClick={() => goTo(mod.id)} className="p-4 rounded-2xl text-left transition-all active:scale-95 relative" style={{ background: mod.color + "10", border: `1px solid ${mod.color}25` }}>
                 <span className="text-2xl block mb-2">{mod.icon}</span>
                 <div className="text-white font-bold text-sm">{mod.label}</div>
-                <div className="text-white/30 text-xs mt-0.5">{mod.free ? "Gratis" : "Premium"}</div>
               </button>
             );
           })}
         </div>
       </div>
 
-      {!isPremium && (
-        <button onClick={() => goTo("premium")} className="w-full py-4 rounded-2xl font-bold text-sm text-white" style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
-          ✨ Desbloquear Premium — desde 4,99€/mes
-        </button>
-      )}
+
     </div>
   );
 }
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
-function Settings({ user, profile, onSignOut, goTo, isPremium }) {
+function Settings({ user, profile, onSignOut, goTo }) {
   return (
     <div className="space-y-4">
       <div className="py-1"><h2 className="text-xl font-black text-white">Ajustes</h2></div>
-      <Card style={{ background: isPremium ? "linear-gradient(135deg, rgba(124,58,237,0.15), rgba(79,70,229,0.05))" : CARD, border: isPremium ? "1px solid rgba(124,58,237,0.3)" : `1px solid ${BORDER}` }}>
+      <Card>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: "rgba(124,58,237,0.2)" }}>{isPremium ? "👑" : "👤"}</div>
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: "rgba(124,58,237,0.2)" }}>👤</div>
           <div className="flex-1">
             <div className="text-white font-bold">{profile.nombre}</div>
             <div className="text-white/30 text-xs">{user.email}</div>
-            <div className="text-xs mt-0.5" style={{ color: isPremium ? "#a78bfa" : "#fbbf24" }}>{isPremium ? "👑 Plan Premium" : "Plan Gratuito"}</div>
           </div>
         </div>
       </Card>
 
-      <button onClick={() => goTo("premium")} className="w-full py-3.5 rounded-2xl font-bold text-sm text-white" style={{ background: isPremium ? "rgba(124,58,237,0.15)" : "linear-gradient(135deg, #7c3aed, #4f46e5)", border: isPremium ? "1px solid rgba(124,58,237,0.3)" : "none", color: isPremium ? "#a78bfa" : "white" }}>
-        {isPremium ? "👑 Gestionar suscripción" : "✨ Hazte Premium — desde 4,99€/mes"}
-      </button>
+
 
       <Card>
         <Lbl>Tu perfil</Lbl>
@@ -608,7 +465,7 @@ function Settings({ user, profile, onSignOut, goTo, isPremium }) {
 }
 
 // ─── SIMPLE MODULE ────────────────────────────────────────────────────────────
-function SimpleModule({ moduleId, userId, user, isPremium, onUpgrade }) {
+function SimpleModule({ moduleId, userId, user }) {
   const mod = ALL_MODULES.find(m => m.id === moduleId);
   const [notas, setNotas] = useCloudData(userId, `notas_${moduleId}`, "");
   return (
@@ -616,13 +473,13 @@ function SimpleModule({ moduleId, userId, user, isPremium, onUpgrade }) {
       <div className="flex items-center gap-3 py-1"><span className="text-3xl">{mod.icon}</span><div><h2 className="text-xl font-black text-white">{mod.label}</h2></div></div>
       <Card><Lbl>📝 Mis notas</Lbl><textarea value={notas || ""} onChange={e => setNotas(e.target.value)} placeholder="Escribe aquí..." className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/25 focus:outline-none resize-none h-36" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} /></Card>
       <NotasCarpetas userId={userId} storeKey={moduleId} color={mod.color} />
-      <AIChat sp={buildSP(moduleId, user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
+      <AIChat sp={buildSP(moduleId, user)} color={mod.color} name={mod.label} />
     </div>
   );
 }
 
 // ─── FINANZAS ─────────────────────────────────────────────────────────────────
-function Finanzas({ userId, user, isPremium, onUpgrade }) {
+function Finanzas({ userId, user }) {
   const mod = ALL_MODULES.find(m => m.id === "finanzas");
   const [dat, setDat] = useCloudData(userId, "finanzas_dat", { ingresos: 0, gastos: 0, ahorros: parseInt(user.dinero) || 0, inversiones: 0 });
   const [gastos, setGastos] = useCloudData(userId, "finanzas_gastos", []);
@@ -690,13 +547,13 @@ function Finanzas({ userId, user, isPremium, onUpgrade }) {
           <div className="text-3xl font-black mt-1" style={{ color: mod.color }}>{parseInt(res).toLocaleString()}€</div>
         </div>}
       </Card>
-      <AIChat sp={buildSP("finanzas", user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
+      <AIChat sp={buildSP("finanzas", user)} color={mod.color} name={mod.label} />
     </div>
   );
 }
 
 // ─── MENTALIDAD ───────────────────────────────────────────────────────────────
-function Mentalidad({ userId, user, isPremium, onUpgrade }) {
+function Mentalidad({ userId, user }) {
   const mod = ALL_MODULES.find(m => m.id === "habitos");
   const defH = { "📖 Leer 20 min": false, "💧 2L de agua": false, "🏃 Ejercicio hoy": false, "📵 Sin móvil por la mañana": false, "🙏 Gratitud": false };
   const [habits, setHabits] = useCloudData(userId, "hab_habits", defH);
@@ -722,7 +579,7 @@ function Mentalidad({ userId, user, isPremium, onUpgrade }) {
           </button>
         ))}
       </Card>
-      <AIChat sp={buildSP("habitos", user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
+      <AIChat sp={buildSP("habitos", user)} color={mod.color} name={mod.label} />
     </div>
   );
 }
@@ -755,7 +612,6 @@ export default function LifeOS() {
   const [active, setActive] = useState("dashboard");
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  const isPremium = profile?.plan === "premium";
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -799,11 +655,6 @@ export default function LifeOS() {
     setSession(null); setProfile(null); setActive("dashboard");
   }
 
-  function handlePremiumActivated() {
-    setProfile(p => ({ ...p, plan: "premium" }));
-    setActive("dashboard");
-  }
-
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: BG }}>
       <div className="text-center">
@@ -822,16 +673,13 @@ export default function LifeOS() {
   const userProfile = { ...profile, objetivoFisico: profile.objetivo_fisico || profile.objetivoFisico || "Ganar músculo", modulos: profile.modulos || [] };
 
   const goTo = (id) => setActive(id);
-  const commonProps = { userId: session.user.id, user: userProfile, isPremium, onUpgrade: () => goTo("premium") };
-
   const renderModule = () => {
     switch (active) {
-      case "dashboard": return <Dashboard user={session.user} profile={userProfile} goTo={goTo} isPremium={isPremium} />;
-      case "settings": return <Settings user={session.user} profile={userProfile} onSignOut={handleSignOut} goTo={goTo} isPremium={isPremium} />;
-      case "premium": return <PremiumScreen userId={session.user.id} onBack={() => goTo("dashboard")} isPremium={isPremium} onPremiumActivated={handlePremiumActivated} />;
-      case "habitos": return <Mentalidad {...commonProps} />;
-      case "finanzas": return <Finanzas {...commonProps} />;
-      default: return <SimpleModule moduleId={active} {...commonProps} />;
+      case "dashboard": return <Dashboard user={session.user} profile={userProfile} goTo={goTo} />;
+      case "settings": return <Settings user={session.user} profile={userProfile} onSignOut={handleSignOut} goTo={goTo} />;
+      case "habitos": return <Mentalidad userId={session.user.id} user={userProfile} />;
+      case "finanzas": return <Finanzas userId={session.user.id} user={userProfile} />;
+      default: return <SimpleModule moduleId={active} userId={session.user.id} user={userProfile} />;
     }
   };
 
