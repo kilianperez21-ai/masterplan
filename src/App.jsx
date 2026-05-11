@@ -1,6 +1,25 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 
+// ─── STRIPE CONFIG ────────────────────────────────────────────────────────────
+const STRIPE_PK = "pk_test_51TVp5rJpmm0pysgCWQ65bGemTmrccO7GA29BNZ6SQheqxAdMuIqaVvFGNDNx9toolBaag5I83iX3KkXLVxhRizde00e1vGGrk8";
+const PRICE_LAUNCH = "price_1TVpAyJpmm0pysgCh0awTiQX"; // 4,99€/mes
+const PRICE_FULL = "price_1TVpBzJpmm0pysgCDHEoYTTJ";   // 7,99€/mes
+
+// Load Stripe
+let stripePromise = null;
+function getStripe() {
+  if (!stripePromise) {
+    stripePromise = new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://js.stripe.com/v3/";
+      script.onload = () => resolve(window.Stripe(STRIPE_PK));
+      document.head.appendChild(script);
+    });
+  }
+  return stripePromise;
+}
+
 // ─── AI ───────────────────────────────────────────────────────────────────────
 async function callAI(system, messages) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -36,7 +55,7 @@ function buildSP(moduleId, user) {
     entreno: "Eres el mejor entrenador personal. Planes concretos con series, reps y progresión adaptados al equipamiento.",
     sueno: "Eres el mayor experto en optimización del sueño. Ciclos circadianos, rutinas y suplementos específicos.",
     negocio: "Eres el mayor experto en emprendimiento. Pasos concretos y estrategias para el negocio específico del usuario.",
-    estudios: "Eres el mayor experto en aprendizaje acelerado. Adaptas todo a la materia del usuario. Creas preguntas personalizadas.",
+    estudios: "Eres el mayor experto en aprendizaje acelerado. Adaptas todo a la materia del usuario.",
     lectura: "Eres el mejor recomendador de libros y podcasts. Recomiendas según el perfil exacto del usuario.",
     relaciones: "Eres el mejor terapeuta de pareja. Haces preguntas profundas y das estrategias muy concretas.",
     nutricion: "Eres el mejor nutricionista deportivo. Planes con gramos exactos adaptados al objetivo del usuario.",
@@ -63,10 +82,6 @@ function Inp({ value, onChange, placeholder, type = "text", className = "" }) {
 function Sel({ value, onChange, children }) {
   return <select value={value} onChange={onChange} className="w-full rounded-xl px-4 py-3 text-sm text-white focus:outline-none" style={{ background: "#12121f", border: `1px solid ${BORDER}` }}>{children}</select>;
 }
-function Tag({ children, color, active, onClick }) {
-  return <button onClick={onClick} className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95"
-    style={{ background: active ? color + "25" : CARD, border: `1px solid ${active ? color : BORDER}`, color: active ? color : "rgba(255,255,255,0.4)" }}>{children}</button>;
-}
 function GoldBtn({ children, onClick, color = "#7c3aed", disabled = false, ghost = false, small = false, className = "" }) {
   return <button onClick={onClick} disabled={disabled}
     className={`${small ? "px-4 py-2 text-xs" : "w-full py-3.5 text-sm"} rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-30 ${className}`}
@@ -81,18 +96,14 @@ function XBtn({ onClick }) {
   return <button onClick={e => { e.stopPropagation(); onClick(); }} className="w-6 h-6 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-red-500/20 transition-all flex-shrink-0 text-xs">✕</button>;
 }
 
-// ─── SUPABASE DATA HOOKS ──────────────────────────────────────────────────────
+// ─── CLOUD DATA HOOK ──────────────────────────────────────────────────────────
 function useCloudData(userId, key, defaultVal) {
   const [data, setData] = useState(defaultVal);
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
     supabase.from("module_data").select("data").eq("user_id", userId).eq("module_key", key).single()
-      .then(({ data: row }) => {
-        if (row?.data) setData(row.data);
-        setLoaded(true);
-      });
+      .then(({ data: row }) => { if (row?.data) setData(row.data); });
   }, [userId, key]);
 
   const save = async (newData) => {
@@ -100,7 +111,7 @@ function useCloudData(userId, key, defaultVal) {
     await supabase.from("module_data").upsert({ user_id: userId, module_key: key, data: newData, updated_at: new Date().toISOString() }, { onConflict: "user_id,module_key" });
   };
 
-  return [data, save, loaded];
+  return [data, save];
 }
 
 // ─── AI CHAT ─────────────────────────────────────────────────────────────────
@@ -113,11 +124,11 @@ function AIChat({ sp, color, name, initMsg, isPremium, onUpgrade }) {
 
   if (!isPremium) return (
     <Card style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.15), rgba(79,70,229,0.05))", border: "1px solid rgba(124,58,237,0.3)" }}>
-      <div className="text-center py-4">
-        <div className="text-3xl mb-3">🔒</div>
-        <div className="text-white font-bold mb-1">Asistente IA — Plan Premium</div>
-        <p className="text-white/40 text-sm mb-4">Desbloquea el asistente IA experto en {name} y todos los módulos avanzados.</p>
-        <GoldBtn onClick={onUpgrade} color="#7c3aed">✨ Hazte Premium — 7,99€/mes</GoldBtn>
+      <div className="text-center py-6">
+        <div className="text-4xl mb-3">🔒</div>
+        <div className="text-white font-bold text-lg mb-1">Asistente IA — Premium</div>
+        <p className="text-white/40 text-sm mb-5">Desbloquea el experto en {name} y todos los módulos avanzados por solo 4,99€/mes.</p>
+        <GoldBtn onClick={onUpgrade} color="#7c3aed">✨ Ver planes Premium</GoldBtn>
       </div>
     </Card>
   );
@@ -137,7 +148,7 @@ function AIChat({ sp, color, name, initMsg, isPremium, onUpgrade }) {
     <Card>
       <div className="flex items-center gap-2 mb-3">
         <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: color }} />
-        <span className="text-xs font-bold uppercase tracking-widest" style={{ color }}>IA Experta · {name}</span>
+        <span className="text-xs font-bold uppercase tracking-widest" style={{ color }}>IA · {name}</span>
         <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "#7c3aed20", color: "#a78bfa" }}>PREMIUM</span>
       </div>
       <div className="h-56 overflow-y-auto flex flex-col gap-2 mb-3 pr-1">
@@ -172,18 +183,18 @@ function NotasCarpetas({ userId, storeKey, color }) {
 
   function addCarpeta() {
     if (!nuevaCarpeta.trim()) return;
-    const updated = [...carpetas, { id: Date.now(), nombre: nuevaCarpeta.trim(), notas: [] }];
-    setCarpetas(updated); setNuevaCarpeta("");
+    setCarpetas([...(carpetas || []), { id: Date.now(), nombre: nuevaCarpeta.trim(), notas: [] }]);
+    setNuevaCarpeta("");
   }
-  function delCarpeta(id) { setCarpetas(carpetas.filter(c => c.id !== id)); if (carpetaActiva === id) setCarpetaActiva(null); }
+  function delCarpeta(id) { setCarpetas((carpetas || []).filter(c => c.id !== id)); if (carpetaActiva === id) setCarpetaActiva(null); }
   function addNota() {
     if (!nuevaNota.trim() || !carpetaActiva) return;
-    setCarpetas(carpetas.map(c => c.id === carpetaActiva ? { ...c, notas: [...c.notas, { id: Date.now(), texto: nuevaNota.trim(), fecha: new Date().toLocaleDateString() }] } : c));
+    setCarpetas((carpetas || []).map(c => c.id === carpetaActiva ? { ...c, notas: [...(c.notas || []), { id: Date.now(), texto: nuevaNota.trim(), fecha: new Date().toLocaleDateString() }] } : c));
     setNuevaNota("");
   }
-  function delNota(carpetaId, notaId) { setCarpetas(carpetas.map(c => c.id === carpetaId ? { ...c, notas: c.notas.filter(n => n.id !== notaId) } : c)); }
+  function delNota(carpetaId, notaId) { setCarpetas((carpetas || []).map(c => c.id === carpetaId ? { ...c, notas: (c.notas || []).filter(n => n.id !== notaId) } : c)); }
 
-  const carpetaActual = carpetas.find(c => c.id === carpetaActiva);
+  const carpetaActual = (carpetas || []).find(c => c.id === carpetaActiva);
 
   if (carpetaActual) return (
     <Card>
@@ -196,8 +207,8 @@ function NotasCarpetas({ userId, storeKey, color }) {
         style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
       <GoldBtn onClick={addNota} color={color} small>+ Añadir nota</GoldBtn>
       <div className="space-y-2 mt-3 max-h-48 overflow-y-auto">
-        {carpetaActual.notas.length === 0 && <p className="text-white/20 text-xs text-center py-4">Carpeta vacía</p>}
-        {carpetaActual.notas.map(n => (
+        {(carpetaActual.notas || []).length === 0 && <p className="text-white/20 text-xs text-center py-4">Carpeta vacía</p>}
+        {(carpetaActual.notas || []).map(n => (
           <div key={n.id} className="rounded-xl p-3 flex gap-2" style={{ background: "rgba(255,255,255,0.04)" }}>
             <div className="flex-1"><div className="text-white/25 text-xs mb-1">{n.fecha}</div><div className="text-white/70 text-sm">{n.texto}</div></div>
             <XBtn onClick={() => delNota(carpetaActiva, n.id)} />
@@ -214,14 +225,14 @@ function NotasCarpetas({ userId, storeKey, color }) {
         <Inp value={nuevaCarpeta} onChange={e => setNuevaCarpeta(e.target.value)} placeholder="Nueva carpeta..." className="flex-1" />
         <button onClick={addCarpeta} className="rounded-xl px-4 font-bold text-white" style={{ background: color }}>+</button>
       </div>
-      {carpetas.length === 0 && <p className="text-white/20 text-xs text-center py-4">Sin carpetas todavía</p>}
+      {(carpetas || []).length === 0 && <p className="text-white/20 text-xs text-center py-4">Sin carpetas todavía</p>}
       <div className="space-y-2">
-        {carpetas.map(c => (
+        {(carpetas || []).map(c => (
           <div key={c.id} className="flex items-center gap-2 rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}` }}>
             <span className="text-lg">📁</span>
             <div className="flex-1 cursor-pointer" onClick={() => setCarpetaActiva(c.id)}>
               <div className="text-white font-semibold text-sm">{c.nombre}</div>
-              <div className="text-white/30 text-xs">{c.notas.length} nota{c.notas.length !== 1 ? "s" : ""}</div>
+              <div className="text-white/30 text-xs">{(c.notas || []).length} nota{(c.notas || []).length !== 1 ? "s" : ""}</div>
             </div>
             <XBtn onClick={() => delCarpeta(c.id)} />
           </div>
@@ -232,7 +243,7 @@ function NotasCarpetas({ userId, storeKey, color }) {
 }
 
 // ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
-function AuthScreen({ onAuth }) {
+function AuthScreen() {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -244,20 +255,14 @@ function AuthScreen({ onAuth }) {
     if (!email || !password) { setError("Rellena todos los campos"); return; }
     setLoading(true); setError(""); setSuccess("");
     if (mode === "login") {
-      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
       if (err) setError("Email o contraseña incorrectos");
-      else onAuth(data.user);
     } else {
       const { data, error: err } = await supabase.auth.signUp({ email, password });
       if (err) setError(err.message);
-      else if (data.user && !data.session) setSuccess("¡Cuenta creada! Revisa tu email para confirmar.");
-      else if (data.user) onAuth(data.user);
+      else if (data.user && !data.session) setSuccess("¡Revisa tu email para confirmar tu cuenta!");
     }
     setLoading(false);
-  }
-
-  async function handleGoogle() {
-    await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
   }
 
   return (
@@ -281,50 +286,66 @@ function AuthScreen({ onAuth }) {
               </button>
             ))}
           </div>
-
           <div className="space-y-3 mb-4">
             <Inp value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" type="email" />
             <Inp value={password} onChange={e => setPassword(e.target.value)} placeholder="Contraseña" type="password" />
           </div>
-
           {error && <div className="rounded-xl px-4 py-3 mb-4 text-sm text-red-400" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>{error}</div>}
           {success && <div className="rounded-xl px-4 py-3 mb-4 text-sm text-green-400" style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)" }}>{success}</div>}
-
           <GoldBtn onClick={handleSubmit} disabled={loading}>
             {loading ? "Cargando..." : mode === "login" ? "Entrar →" : "Crear cuenta →"}
           </GoldBtn>
-
-          <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 h-px" style={{ background: BORDER }} />
-            <span className="text-white/20 text-xs">o continúa con</span>
-            <div className="flex-1 h-px" style={{ background: BORDER }} />
-          </div>
-
-          <button onClick={handleGoogle} className="w-full py-3 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-3 transition-all active:scale-95"
-            style={{ background: CARD, border: `1px solid ${BORDER}` }}>
-            <span className="text-lg">G</span> Google
-          </button>
         </Card>
-
-        <p className="text-white/20 text-xs text-center mt-6">Al registrarte aceptas nuestros términos de uso.</p>
+        <p className="text-white/20 text-xs text-center mt-6">Al registrarte aceptas nuestros términos de uso · golifeos.net</p>
       </div>
     </div>
   );
 }
 
 // ─── PREMIUM SCREEN ───────────────────────────────────────────────────────────
-function PremiumScreen({ user, onBack, isPremium }) {
+function PremiumScreen({ userId, onBack, isPremium, onPremiumActivated }) {
+  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState("launch");
+
   const benefits = [
-    "🤖 Asistentes IA en todos los módulos",
+    "🤖 Asistentes IA expertos en cada módulo",
     "🍎 Dieta personalizada generada por IA",
-    "📚 Preguntas de examen IA para estudios",
+    "📚 Preguntas de examen diarias con IA",
     "📖 Recomendaciones de libros y podcasts",
     "💼 Plan de negocio personalizado con IA",
     "💑 Terapeuta de pareja IA",
     "🧘 Meditación y bienestar con IA",
     "☁️ Datos sincronizados en todos tus dispositivos",
-    "🔄 Actualizaciones continuas",
+    "🔄 Nuevos módulos y mejoras continuas",
   ];
+
+  async function handleSubscribe() {
+    setLoading(true);
+    try {
+      const stripe = await getStripe();
+      const priceId = plan === "launch" ? PRICE_LAUNCH : PRICE_FULL;
+      const { error } = await stripe.redirectToCheckout({
+        lineItems: [{ price: priceId, quantity: 1 }],
+        mode: "subscription",
+        successUrl: `${window.location.origin}?premium=true&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${window.location.origin}?premium=cancelled`,
+        customerEmail: (await supabase.auth.getUser()).data.user?.email,
+      });
+      if (error) console.error(error);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }
+
+  // Check for premium activation on return from Stripe
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("premium") === "true") {
+      supabase.from("profiles").update({ plan: "premium" }).eq("id", userId).then(() => {
+        window.history.replaceState({}, "", window.location.pathname);
+        onPremiumActivated();
+      });
+    }
+  }, []);
 
   if (isPremium) return (
     <div className="space-y-4">
@@ -336,10 +357,7 @@ function PremiumScreen({ user, onBack, isPremium }) {
         <div className="text-center py-4">
           <div className="text-4xl mb-3">👑</div>
           <div className="text-white font-black text-xl mb-1">Plan Premium Activo</div>
-          <div className="text-white/40 text-sm mb-4">Tienes acceso a todas las funciones</div>
-          <div className="rounded-xl px-4 py-2 inline-block" style={{ background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.3)" }}>
-            <span className="text-violet-300 font-bold">7,99€/mes</span>
-          </div>
+          <div className="text-white/40 text-sm">Tienes acceso a todas las funciones de LIFEOS</div>
         </div>
       </Card>
       <Card>
@@ -349,11 +367,11 @@ function PremiumScreen({ user, onBack, isPremium }) {
         </div>
       </Card>
       <Card>
-        <Lbl>⚠️ Gestionar suscripción</Lbl>
-        <p className="text-white/30 text-xs mb-3">Para cancelar tu suscripción contacta con nosotros o gestiona desde Stripe.</p>
-        <button className="w-full py-3 rounded-2xl font-bold text-sm text-red-400" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-          Cancelar suscripción
-        </button>
+        <Lbl>⚠️ Cancelar suscripción</Lbl>
+        <p className="text-white/30 text-xs mb-3">Para cancelar envíanos un email a hola@golifeos.net y lo gestionamos en menos de 24h.</p>
+        <a href="mailto:hola@golifeos.net?subject=Cancelar suscripción LIFEOS" className="block w-full py-3 rounded-2xl font-bold text-sm text-center text-red-400" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+          Solicitar cancelación
+        </a>
       </Card>
     </div>
   );
@@ -365,15 +383,23 @@ function PremiumScreen({ user, onBack, isPremium }) {
         <h2 className="text-xl font-black text-white">Hazte Premium</h2>
       </div>
 
-      <Card style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.2), rgba(79,70,229,0.08))", border: "1px solid rgba(124,58,237,0.35)" }}>
-        <div className="text-center py-2">
-          <div className="text-4xl mb-3">👑</div>
-          <div className="text-white font-black text-2xl mb-1">Plan Premium</div>
-          <div className="text-white/40 text-sm mb-2">Desbloquea todo el poder de LIFEOS</div>
-          <div className="text-4xl font-black text-white mb-1">7,99€<span className="text-lg text-white/40">/mes</span></div>
-          <div className="text-white/30 text-xs">Cancela cuando quieras</div>
-        </div>
-      </Card>
+      {/* Plan selector */}
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => setPlan("launch")} className="p-4 rounded-2xl text-left transition-all"
+          style={{ background: plan === "launch" ? "rgba(124,58,237,0.2)" : CARD, border: `2px solid ${plan === "launch" ? "#7c3aed" : BORDER}` }}>
+          <div className="text-xs font-bold text-amber-400 mb-1">🚀 LANZAMIENTO</div>
+          <div className="text-white font-black text-2xl">4,99€<span className="text-sm text-white/40">/mes</span></div>
+          <div className="text-white/40 text-xs mt-1">Solo primeros 100 usuarios</div>
+          {plan === "launch" && <div className="text-violet-400 text-xs mt-2 font-bold">✓ Seleccionado</div>}
+        </button>
+        <button onClick={() => setPlan("full")} className="p-4 rounded-2xl text-left transition-all"
+          style={{ background: plan === "full" ? "rgba(124,58,237,0.2)" : CARD, border: `2px solid ${plan === "full" ? "#7c3aed" : BORDER}` }}>
+          <div className="text-xs font-bold text-white/40 mb-1">ESTÁNDAR</div>
+          <div className="text-white font-black text-2xl">7,99€<span className="text-sm text-white/40">/mes</span></div>
+          <div className="text-white/40 text-xs mt-1">Precio normal</div>
+          {plan === "full" && <div className="text-violet-400 text-xs mt-2 font-bold">✓ Seleccionado</div>}
+        </button>
+      </div>
 
       <Card>
         <Lbl>Todo lo que incluye</Lbl>
@@ -390,8 +416,10 @@ function PremiumScreen({ user, onBack, isPremium }) {
       </Card>
 
       <div className="space-y-3">
-        <GoldBtn color="linear-gradient(135deg, #7c3aed, #4f46e5)">✨ Empezar prueba gratuita 7 días</GoldBtn>
-        <p className="text-white/20 text-xs text-center">Sin compromiso. Cancela cuando quieras.</p>
+        <GoldBtn onClick={handleSubscribe} disabled={loading} color="linear-gradient(135deg, #7c3aed, #4f46e5)">
+          {loading ? "Redirigiendo a pago..." : `✨ Suscribirme por ${plan === "launch" ? "4,99" : "7,99"}€/mes`}
+        </GoldBtn>
+        <p className="text-white/20 text-xs text-center">Pago seguro con Stripe · Cancela cuando quieras</p>
       </div>
 
       <Card>
@@ -446,22 +474,22 @@ function Onboarding({ onDone }) {
       <div><Lbl>Situación sentimental</Lbl><Sel value={d.pareja} onChange={e => u("pareja", e.target.value)}><option>Sin pareja</option><option>En pareja</option><option>Casado/a</option><option>Complicado</option></Sel></div>
     </div>,
     <div key="s4" className="space-y-2">
-      <p className="text-white/30 text-xs mb-3">Activa solo los que quieres. Los marcados con 🔒 requieren plan Premium.</p>
+      <p className="text-white/30 text-xs mb-3">Activa solo los que quieres. Los marcados con 🔒 requieren Premium.</p>
       {ALL_MODULES.map(mod => {
         const on = d.modulos.includes(mod.id);
-        return <button key={mod.id} onClick={() => toggleM(mod.id)} className="w-full flex items-center gap-3 p-3.5 rounded-2xl transition-all text-left active:scale-98"
+        return <button key={mod.id} onClick={() => toggleM(mod.id)} className="w-full flex items-center gap-3 p-3.5 rounded-2xl transition-all text-left"
           style={{ background: on ? mod.color + "15" : CARD, border: `1px solid ${on ? mod.color + "50" : BORDER}` }}>
           <span className="text-2xl">{mod.icon}</span>
-          <div className="flex-1"><div className="text-white text-sm font-bold">{mod.label}</div><div className="text-white/30 text-xs">{mod.free ? "Gratis" : "🔒 Premium"}</div></div>
+          <div className="flex-1"><div className="text-white text-sm font-bold">{mod.label}</div><div className="text-white/30 text-xs">{mod.free ? "✅ Gratis" : "🔒 Premium"}</div></div>
           <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: on ? mod.color : "rgba(255,255,255,0.08)" }}>{on && <span className="text-white text-xs font-bold">✓</span>}</div>
         </button>;
       })}
     </div>,
     <div key="s5" className="space-y-4">
       <div className="rounded-2xl p-4" style={{ background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.2)" }}>
-        <p className="text-white/60 text-sm leading-relaxed">Esta info va a todos tus asistentes IA. Alergias, lesiones, condiciones médicas, restricciones...</p>
+        <p className="text-white/60 text-sm leading-relaxed">Esta info va a todos tus asistentes IA para personalizarlo al máximo.</p>
       </div>
-      <textarea value={d.extra} onChange={e => u("extra", e.target.value)} placeholder="Ej: Soy celíaco, lesión en hombro, turno noche, ansiedad, vegano..." className="w-full rounded-2xl px-4 py-3 text-sm text-white placeholder-white/25 focus:outline-none resize-none h-40" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
+      <textarea value={d.extra} onChange={e => u("extra", e.target.value)} placeholder="Alergias, lesiones, condiciones médicas, restricciones, contexto personal..." className="w-full rounded-2xl px-4 py-3 text-sm text-white placeholder-white/25 focus:outline-none resize-none h-40" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
     </div>,
   ];
 
@@ -495,10 +523,10 @@ function Dashboard({ user, profile, goTo, isPremium }) {
   const [frase, setFrase] = useState("Generando tu dosis diaria...");
   const hora = new Date().getHours();
   const sal = hora < 12 ? "Buenos días" : hora < 20 ? "Buenas tardes" : "Buenas noches";
-  const mods = ALL_MODULES.filter(m => profile.modulos?.includes(m.id));
+  const mods = ALL_MODULES.filter(m => (profile.modulos || []).includes(m.id));
 
   useEffect(() => {
-    callAI(`Genera UNA frase motivacional corta y poderosa para ${profile.nombre}, ${profile.edad} años, objetivo: ${profile.objetivoFisico}. Máximo 2 líneas. Sin hashtags.`,
+    callAI(`Genera UNA frase motivacional corta y poderosa para ${profile.nombre}, ${profile.edad} años. Máximo 2 líneas. Sin hashtags. Original y directa.`,
       [{ role: "user", content: "Frase del día." }]).then(setFrase).catch(() => setFrase("El único momento para empezar siempre fue ahora."));
   }, []);
 
@@ -508,10 +536,10 @@ function Dashboard({ user, profile, goTo, isPremium }) {
         <p className="text-white/30 text-sm">{sal} 👋</p>
         <h1 className="text-3xl font-black text-white">{profile.nombre}</h1>
         <div className="flex items-center gap-2 mt-1">
-          <p className="text-white/20 text-xs">Tu sistema operativo de vida</p>
+          <p className="text-white/20 text-xs">golifeos.net</p>
           {isPremium
             ? <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "#7c3aed20", color: "#a78bfa" }}>👑 PREMIUM</span>
-            : <button onClick={() => goTo("premium")} className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>✨ Upgrade</button>
+            : <button onClick={() => goTo("premium")} className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>✨ Upgrade — desde 4,99€</button>
           }
         </div>
       </div>
@@ -521,7 +549,7 @@ function Dashboard({ user, profile, goTo, isPremium }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {[["🎯", profile.objetivoFisico, "Objetivo"], ["💼", profile.trabajo, "Trabajo"], ["⏰", (profile.horario || "").split("(")[0].trim(), "Horario"], ["💰", `${profile.dinero}€`, "Ahorros"]].map(([ic, v, l]) => (
+        {[["🎯", profile.objetivoFisico, "Objetivo"], ["💼", profile.trabajo, "Trabajo"], ["⏰", (profile.horario || "").split("(")[0].trim(), "Horario"], ["💰", `${profile.dinero || 0}€`, "Ahorros"]].map(([ic, v, l]) => (
           <Card key={l} className="text-center"><div className="text-xl mb-1">{ic}</div><div className="text-white font-bold text-sm truncate">{v}</div><div className="text-white/25 text-xs mt-0.5">{l}</div></Card>
         ))}
       </div>
@@ -532,7 +560,7 @@ function Dashboard({ user, profile, goTo, isPremium }) {
           {mods.map(mod => {
             const locked = !mod.free && !isPremium;
             return (
-              <button key={mod.id} onClick={() => goTo(locked ? "premium" : mod.id)} className="p-4 rounded-2xl text-left transition-all active:scale-95 relative" style={{ background: mod.color + "10", border: `1px solid ${mod.color}25`, opacity: locked ? 0.6 : 1 }}>
+              <button key={mod.id} onClick={() => goTo(locked ? "premium" : mod.id)} className="p-4 rounded-2xl text-left transition-all active:scale-95 relative" style={{ background: mod.color + "10", border: `1px solid ${mod.color}25`, opacity: locked ? 0.7 : 1 }}>
                 {locked && <div className="absolute top-2 right-2 text-xs">🔒</div>}
                 <span className="text-2xl block mb-2">{mod.icon}</span>
                 <div className="text-white font-bold text-sm">{mod.label}</div>
@@ -542,6 +570,12 @@ function Dashboard({ user, profile, goTo, isPremium }) {
           })}
         </div>
       </div>
+
+      {!isPremium && (
+        <button onClick={() => goTo("premium")} className="w-full py-4 rounded-2xl font-bold text-sm text-white" style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
+          ✨ Desbloquear Premium — desde 4,99€/mes
+        </button>
+      )}
     </div>
   );
 }
@@ -551,43 +585,154 @@ function Settings({ user, profile, onSignOut, goTo, isPremium }) {
   return (
     <div className="space-y-4">
       <div className="py-1"><h2 className="text-xl font-black text-white">Ajustes</h2></div>
-
       <Card style={{ background: isPremium ? "linear-gradient(135deg, rgba(124,58,237,0.15), rgba(79,70,229,0.05))" : CARD, border: isPremium ? "1px solid rgba(124,58,237,0.3)" : `1px solid ${BORDER}` }}>
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: "rgba(124,58,237,0.2)" }}>{isPremium ? "👑" : "👤"}</div>
           <div className="flex-1">
             <div className="text-white font-bold">{profile.nombre}</div>
             <div className="text-white/30 text-xs">{user.email}</div>
-            <div className="text-xs mt-0.5" style={{ color: isPremium ? "#a78bfa" : "#fbbf24" }}>{isPremium ? "Plan Premium" : "Plan Gratuito"}</div>
+            <div className="text-xs mt-0.5" style={{ color: isPremium ? "#a78bfa" : "#fbbf24" }}>{isPremium ? "👑 Plan Premium" : "Plan Gratuito"}</div>
           </div>
         </div>
       </Card>
 
-      {!isPremium && (
-        <button onClick={() => goTo("premium")} className="w-full py-3.5 rounded-2xl font-bold text-sm text-white" style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
-          ✨ Hazte Premium — 7,99€/mes
-        </button>
-      )}
-
-      {isPremium && (
-        <button onClick={() => goTo("premium")} className="w-full py-3.5 rounded-2xl font-bold text-sm" style={{ background: "rgba(124,58,237,0.15)", color: "#a78bfa", border: "1px solid rgba(124,58,237,0.3)" }}>
-          👑 Gestionar suscripción
-        </button>
-      )}
+      <button onClick={() => goTo("premium")} className="w-full py-3.5 rounded-2xl font-bold text-sm text-white" style={{ background: isPremium ? "rgba(124,58,237,0.15)" : "linear-gradient(135deg, #7c3aed, #4f46e5)", border: isPremium ? "1px solid rgba(124,58,237,0.3)" : "none", color: isPremium ? "#a78bfa" : "white" }}>
+        {isPremium ? "👑 Gestionar suscripción" : "✨ Hazte Premium — desde 4,99€/mes"}
+      </button>
 
       <Card>
         <Lbl>Tu perfil</Lbl>
-        {[["Nombre", profile.nombre], ["Edad", `${profile.edad} años`], ["Cuerpo", `${profile.peso}kg · ${profile.altura}cm`], ["Objetivo", profile.objetivoFisico], ["Trabajo", profile.trabajo], ["Ahorros", `${profile.dinero}€`]].map(([k, v]) => (
+        {[["Nombre", profile.nombre], ["Edad", `${profile.edad} años`], ["Cuerpo", `${profile.peso}kg · ${profile.altura}cm`], ["Objetivo", profile.objetivoFisico], ["Trabajo", profile.trabajo], ["Ahorros", `${profile.dinero || 0}€`]].map(([k, v]) => (
           <div key={k} className="flex justify-between py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}><span className="text-white/30 text-sm">{k}</span><span className="text-white text-sm font-medium">{v}</span></div>
         ))}
       </Card>
 
       <Card>
-        <Lbl>⚠️ Cuenta</Lbl>
+        <Lbl>Cuenta</Lbl>
         <button onClick={onSignOut} className="w-full py-3.5 rounded-2xl font-bold text-sm text-red-400" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
           Cerrar sesión
         </button>
       </Card>
+    </div>
+  );
+}
+
+// ─── SIMPLE MODULE ────────────────────────────────────────────────────────────
+function SimpleModule({ moduleId, userId, user, isPremium, onUpgrade }) {
+  const mod = ALL_MODULES.find(m => m.id === moduleId);
+  const [notas, setNotas] = useCloudData(userId, `notas_${moduleId}`, "");
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 py-1"><span className="text-3xl">{mod.icon}</span><div><h2 className="text-xl font-black text-white">{mod.label}</h2></div></div>
+      <Card><Lbl>📝 Mis notas</Lbl><textarea value={notas || ""} onChange={e => setNotas(e.target.value)} placeholder="Escribe aquí..." className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/25 focus:outline-none resize-none h-36" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} /></Card>
+      <NotasCarpetas userId={userId} storeKey={moduleId} color={mod.color} />
+      <AIChat sp={buildSP(moduleId, user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
+    </div>
+  );
+}
+
+// ─── FINANZAS ─────────────────────────────────────────────────────────────────
+function Finanzas({ userId, user, isPremium, onUpgrade }) {
+  const mod = ALL_MODULES.find(m => m.id === "finanzas");
+  const [dat, setDat] = useCloudData(userId, "finanzas_dat", { ingresos: 0, gastos: 0, ahorros: parseInt(user.dinero) || 0, inversiones: 0 });
+  const [gastos, setGastos] = useCloudData(userId, "finanzas_gastos", []);
+  const [ng, setNg] = useState({ desc: "", monto: "", cat: "Comida" });
+  const [comp, setComp] = useState({ m: 200, y: 10, i: 7 });
+  const [res, setRes] = useState(null);
+  const cats = ["Comida", "Transporte", "Ocio", "Salud", "Educación", "Negocio", "Ropa", "Suscripciones", "Otro"];
+  const catColors = { Comida: "#4ade80", Transporte: "#60a5fa", Ocio: "#f472b6", Salud: "#f97316", Educación: "#a78bfa", Negocio: "#fbbf24", Ropa: "#fb7185", Suscripciones: "#38bdf8", Otro: "#94a3b8" };
+  const calcC = () => { const r = comp.i / 100 / 12; const n = comp.y * 12; setRes((comp.m * ((Math.pow(1 + r, n) - 1) / r)).toFixed(0)); };
+  const totalGastos = (gastos || []).reduce((s, g) => s + parseFloat(g.monto || 0), 0);
+  const addGasto = () => { if (ng.desc && ng.monto) { setGastos([{ ...ng, fecha: new Date().toLocaleDateString(), id: Date.now() }, ...(gastos || [])]); setNg({ desc: "", monto: "", cat: "Comida" }); } };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 py-1"><span className="text-3xl">{mod.icon}</span><div><h2 className="text-xl font-black text-white">{mod.label}</h2></div></div>
+      <div className="grid grid-cols-2 gap-3">
+        {[{ l: "Ingresos/mes", k: "ingresos", c: "#34d399", i: "📈" }, { l: "Gastos fijos", k: "gastos", c: "#f87171", i: "📉" }, { l: "Ahorros", k: "ahorros", c: "#fbbf24", i: "🏦" }, { l: "Inversiones", k: "inversiones", c: "#60a5fa", i: "📊" }].map(f => (
+          <Card key={f.k} className="text-center">
+            <div>{f.i}</div>
+            <div className="text-xl font-black mt-1" style={{ color: f.c }}>{(dat || {})[f.k] || 0}€</div>
+            <div className="text-white/25 text-xs mb-1">{f.l}</div>
+            <input type="number" value={(dat || {})[f.k] || 0} onChange={e => setDat({ ...(dat || {}), [f.k]: parseFloat(e.target.value) || 0 })} className="w-full rounded-lg px-2 py-1 text-xs text-center text-white focus:outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <div className="flex justify-between"><div><div className="text-white/30 text-xs">Ahorro potencial</div><div className="text-2xl font-black" style={{ color: mod.color }}>{((dat || {}).ingresos || 0) - ((dat || {}).gastos || 0)}€/mes</div></div><div className="text-right"><div className="text-white/30 text-xs">Tasa ahorro</div><div className="text-2xl font-black text-white">{(dat || {}).ingresos > 0 ? Math.round((((dat || {}).ingresos - (dat || {}).gastos) / (dat || {}).ingresos) * 100) : 0}%</div></div></div>
+      </Card>
+      <Card>
+        <Lbl>💳 Tracker de gastos</Lbl>
+        <div className="flex gap-2 mb-3 flex-wrap">
+          <input value={ng.desc} onChange={e => setNg({ ...ng, desc: e.target.value })} onKeyDown={e => e.key === "Enter" && addGasto()} placeholder="Descripción" className="flex-1 min-w-20 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
+          <input type="number" value={ng.monto} onChange={e => setNg({ ...ng, monto: e.target.value })} placeholder="€" className="w-16 rounded-xl px-2 py-2 text-sm text-white focus:outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
+          <select value={ng.cat} onChange={e => setNg({ ...ng, cat: e.target.value })} className="rounded-xl px-2 py-2 text-xs text-white" style={{ background: "#12121f", border: `1px solid ${BORDER}` }}>{cats.map(c => <option key={c}>{c}</option>)}</select>
+          <button onClick={addGasto} className="rounded-xl px-4 py-2 font-bold text-white text-lg" style={{ background: mod.color }}>+</button>
+        </div>
+        {(gastos || []).length > 0 && <>
+          <div className="space-y-2 max-h-52 overflow-y-auto mb-3">
+            {(gastos || []).map(g => (
+              <div key={g.id} className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: catColors[g.cat] || "#94a3b8" }} />
+                <div className="flex-1 min-w-0"><div className="text-white/80 text-sm truncate">{g.desc}</div><div className="text-white/25 text-xs">{g.cat} · {g.fecha}</div></div>
+                <span className="text-red-400 font-bold text-sm flex-shrink-0">-{g.monto}€</span>
+                <XBtn onClick={() => setGastos((gastos || []).filter(x => x.id !== g.id))} />
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl px-4 py-3 flex justify-between" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+            <span className="text-white/50 text-sm font-semibold">Total gastado</span>
+            <span className="text-red-400 font-black text-lg">-{totalGastos.toFixed(2)}€</span>
+          </div>
+        </>}
+      </Card>
+      <Card>
+        <Lbl>📐 Interés compuesto</Lbl>
+        {[{ l: "€/mes", k: "m" }, { l: "Años", k: "y" }, { l: "Interés %", k: "i" }].map(f => (
+          <div key={f.k} className="flex items-center gap-3 mb-2">
+            <span className="text-white/30 text-xs w-20">{f.l}</span>
+            <input type="number" value={comp[f.k]} onChange={e => setComp({ ...comp, [f.k]: parseFloat(e.target.value) || 0 })} className="flex-1 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
+          </div>
+        ))}
+        <GoldBtn onClick={calcC} ghost>Calcular</GoldBtn>
+        {res && <div className="mt-3 rounded-2xl p-4 text-center" style={{ background: mod.color + "15", border: `1px solid ${mod.color}40` }}>
+          <div className="text-white/40 text-xs">En {comp.y} años tendrás</div>
+          <div className="text-3xl font-black mt-1" style={{ color: mod.color }}>{parseInt(res).toLocaleString()}€</div>
+        </div>}
+      </Card>
+      <AIChat sp={buildSP("finanzas", user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
+    </div>
+  );
+}
+
+// ─── MENTALIDAD ───────────────────────────────────────────────────────────────
+function Mentalidad({ userId, user, isPremium, onUpgrade }) {
+  const mod = ALL_MODULES.find(m => m.id === "habitos");
+  const defH = { "📖 Leer 20 min": false, "💧 2L de agua": false, "🏃 Ejercicio hoy": false, "📵 Sin móvil por la mañana": false, "🙏 Gratitud": false };
+  const [habits, setHabits] = useCloudData(userId, "hab_habits", defH);
+  const [int, setInt] = useCloudData(userId, "hab_intencion", "");
+  const [animo, setAnimo] = useCloudData(userId, "hab_animo", 7);
+  const done = Object.values(habits || {}).filter(Boolean).length;
+  const total = Object.keys(habits || {}).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 py-1"><span className="text-3xl">{mod.icon}</span><div><h2 className="text-xl font-black text-white">{mod.label}</h2></div></div>
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="text-center"><div className="text-3xl font-black text-white">{done}/{total}</div><div className="text-white/30 text-xs mt-1">Hábitos hoy</div><ProgressBar value={done} max={total} color={mod.color} /></Card>
+        <Card className="text-center"><div className="text-3xl font-black text-white">{animo || 7}<span className="text-lg text-white/30">/10</span></div><div className="text-white/30 text-xs mt-1">Ánimo</div><input type="range" min="1" max="10" value={animo || 7} onChange={e => setAnimo(parseInt(e.target.value))} className="w-full mt-1" style={{ accentColor: mod.color }} /></Card>
+      </div>
+      <Card><Lbl>🎯 Intención del día</Lbl><Inp value={int || ""} onChange={e => setInt(e.target.value)} placeholder="Una cosa que marcará este día..." /></Card>
+      <Card>
+        <Lbl>Hábitos de hoy</Lbl>
+        {Object.entries(habits || {}).map(([h, v]) => (
+          <button key={h} onClick={() => setHabits({ ...(habits || {}), [h]: !v })} className="w-full flex items-center gap-3 p-3 rounded-xl mb-2 transition-all text-left" style={{ background: v ? mod.color + "15" : "rgba(255,255,255,0.04)", border: `1px solid ${v ? mod.color + "40" : BORDER}` }}>
+            <div className="w-6 h-6 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: v ? mod.color : "rgba(255,255,255,0.1)" }}>{v && <span className="text-white text-xs font-bold">✓</span>}</div>
+            <span className={`text-sm flex-1 ${v ? "line-through text-white/30" : "text-white"}`}>{h}</span>
+          </button>
+        ))}
+      </Card>
+      <AIChat sp={buildSP("habitos", user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
     </div>
   );
 }
@@ -608,136 +753,6 @@ function Nav({ active, goTo, mods }) {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// ─── SIMPLE MODULE WRAPPER (for modules without full implementation) ───────────
-function SimpleModule({ moduleId, userId, user, isPremium, onUpgrade }) {
-  const mod = ALL_MODULES.find(m => m.id === moduleId);
-  const [notas, setNotas] = useCloudData(userId, `notas_${moduleId}`, "");
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 py-1"><span className="text-3xl">{mod.icon}</span><div><h2 className="text-xl font-black text-white">{mod.label}</h2></div></div>
-      <Card>
-        <Lbl>📝 Mis notas</Lbl>
-        <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Escribe aquí..." className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/25 focus:outline-none resize-none h-36" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
-      </Card>
-      <NotasCarpetas userId={userId} storeKey={moduleId} color={mod.color} />
-      <AIChat sp={buildSP(moduleId, user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
-    </div>
-  );
-}
-
-// ─── FINANZAS ─────────────────────────────────────────────────────────────────
-function Finanzas({ userId, user, isPremium, onUpgrade }) {
-  const mod = ALL_MODULES.find(m => m.id === "finanzas");
-  const [dat, setDat] = useCloudData(userId, "finanzas_dat", { ingresos: 0, gastos: 0, ahorros: parseInt(user.dinero) || 0, inversiones: 0 });
-  const [gastos, setGastos] = useCloudData(userId, "finanzas_gastos", []);
-  const [ng, setNg] = useState({ desc: "", monto: "", cat: "Comida" });
-  const [comp, setComp] = useState({ m: 200, y: 10, i: 7 });
-  const [res, setRes] = useState(null);
-  const cats = ["Comida", "Transporte", "Ocio", "Salud", "Educación", "Negocio", "Ropa", "Suscripciones", "Otro"];
-  const catColors = { Comida: "#4ade80", Transporte: "#60a5fa", Ocio: "#f472b6", Salud: "#f97316", Educación: "#a78bfa", Negocio: "#fbbf24", Ropa: "#fb7185", Suscripciones: "#38bdf8", Otro: "#94a3b8" };
-
-  const calcC = () => { const r = comp.i / 100 / 12; const n = comp.y * 12; setRes((comp.m * ((Math.pow(1 + r, n) - 1) / r)).toFixed(0)); };
-  const totalGastos = (gastos || []).reduce((s, g) => s + parseFloat(g.monto || 0), 0);
-  const addGasto = () => { if (ng.desc && ng.monto) { setGastos([{ ...ng, fecha: new Date().toLocaleDateString(), id: Date.now() }, ...(gastos || [])]); setNg({ desc: "", monto: "", cat: "Comida" }); } };
-  const delGasto = id => setGastos((gastos || []).filter(g => g.id !== id));
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 py-1"><span className="text-3xl">{mod.icon}</span><div><h2 className="text-xl font-black text-white">{mod.label}</h2><p className="text-white/30 text-xs">Control financiero</p></div></div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {[{ l: "Ingresos/mes", k: "ingresos", c: "#34d399", i: "📈" }, { l: "Gastos fijos", k: "gastos", c: "#f87171", i: "📉" }, { l: "Ahorros", k: "ahorros", c: "#fbbf24", i: "🏦" }, { l: "Inversiones", k: "inversiones", c: "#60a5fa", i: "📊" }].map(f => (
-          <Card key={f.k} className="text-center">
-            <div>{f.i}</div>
-            <div className="text-xl font-black mt-1" style={{ color: f.c }}>{(dat || {})[f.k] || 0}€</div>
-            <div className="text-white/25 text-xs mb-1">{f.l}</div>
-            <input type="number" value={(dat || {})[f.k] || 0} onChange={e => setDat({ ...(dat || {}), [f.k]: parseFloat(e.target.value) || 0 })} className="w-full rounded-lg px-2 py-1 text-xs text-center text-white focus:outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
-          </Card>
-        ))}
-      </div>
-
-      <Card>
-        <Lbl>💳 Tracker de gastos</Lbl>
-        <div className="flex gap-2 mb-3 flex-wrap">
-          <input value={ng.desc} onChange={e => setNg({ ...ng, desc: e.target.value })} onKeyDown={e => e.key === "Enter" && addGasto()} placeholder="Descripción" className="flex-1 min-w-20 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
-          <input type="number" value={ng.monto} onChange={e => setNg({ ...ng, monto: e.target.value })} placeholder="€" className="w-16 rounded-xl px-2 py-2 text-sm text-white focus:outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
-          <select value={ng.cat} onChange={e => setNg({ ...ng, cat: e.target.value })} className="rounded-xl px-2 py-2 text-xs text-white" style={{ background: "#12121f", border: `1px solid ${BORDER}` }}>{cats.map(c => <option key={c}>{c}</option>)}</select>
-          <button onClick={addGasto} className="rounded-xl px-4 py-2 font-bold text-white text-lg" style={{ background: mod.color }}>+</button>
-        </div>
-        {(gastos || []).length > 0 && (
-          <>
-            <div className="space-y-2 max-h-52 overflow-y-auto mb-3">
-              {(gastos || []).map(g => (
-                <div key={g.id} className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)" }}>
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: catColors[g.cat] || "#94a3b8" }} />
-                  <div className="flex-1 min-w-0"><div className="text-white/80 text-sm truncate">{g.desc}</div><div className="text-white/25 text-xs">{g.cat} · {g.fecha}</div></div>
-                  <span className="text-red-400 font-bold text-sm flex-shrink-0">-{g.monto}€</span>
-                  <XBtn onClick={() => delGasto(g.id)} />
-                </div>
-              ))}
-            </div>
-            <div className="rounded-xl px-4 py-3 flex justify-between" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-              <span className="text-white/50 text-sm font-semibold">Total gastado</span>
-              <span className="text-red-400 font-black text-lg">-{totalGastos.toFixed(2)}€</span>
-            </div>
-          </>
-        )}
-      </Card>
-
-      <Card>
-        <Lbl>📐 Interés compuesto</Lbl>
-        {[{ l: "€/mes", k: "m" }, { l: "Años", k: "y" }, { l: "Interés %", k: "i" }].map(f => (
-          <div key={f.k} className="flex items-center gap-3 mb-2">
-            <span className="text-white/30 text-xs w-20">{f.l}</span>
-            <input type="number" value={comp[f.k]} onChange={e => setComp({ ...comp, [f.k]: parseFloat(e.target.value) || 0 })} className="flex-1 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${BORDER}` }} />
-          </div>
-        ))}
-        <GoldBtn onClick={calcC} ghost>Calcular</GoldBtn>
-        {res && <div className="mt-3 rounded-2xl p-4 text-center" style={{ background: mod.color + "15", border: `1px solid ${mod.color}40` }}>
-          <div className="text-white/40 text-xs">En {comp.y} años tendrás</div>
-          <div className="text-3xl font-black mt-1" style={{ color: mod.color }}>{parseInt(res).toLocaleString()}€</div>
-        </div>}
-      </Card>
-
-      <AIChat sp={buildSP("finanzas", user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
-    </div>
-  );
-}
-
-// ─── MENTALIDAD ───────────────────────────────────────────────────────────────
-function Mentalidad({ userId, user, isPremium, onUpgrade }) {
-  const mod = ALL_MODULES.find(m => m.id === "habitos");
-  const defH = { "📖 Leer 20 min": false, "💧 2L de agua": false, "🏃 Ejercicio hoy": false, "📵 Sin móvil por la mañana": false, "🙏 Gratitud": false };
-  const [habits, setHabits] = useCloudData(userId, "hab_habits", defH);
-  const [int, setInt] = useCloudData(userId, "hab_intencion", "");
-  const [animo, setAnimo] = useCloudData(userId, "hab_animo", 7);
-
-  const done = Object.values(habits || {}).filter(Boolean).length;
-  const total = Object.keys(habits || {}).length;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 py-1"><span className="text-3xl">{mod.icon}</span><div><h2 className="text-xl font-black text-white">{mod.label}</h2></div></div>
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="text-center"><div className="text-3xl font-black text-white">{done}/{total}</div><div className="text-white/30 text-xs mt-1">Hábitos hoy</div><ProgressBar value={done} max={total} color={mod.color} /></Card>
-        <Card className="text-center"><div className="text-3xl font-black text-white">{animo}<span className="text-lg text-white/30">/10</span></div><div className="text-white/30 text-xs mt-1">Ánimo</div><input type="range" min="1" max="10" value={animo || 7} onChange={e => setAnimo(parseInt(e.target.value))} className="w-full mt-1" style={{ accentColor: mod.color }} /></Card>
-      </div>
-      <Card><Lbl>🎯 Intención del día</Lbl><Inp value={int || ""} onChange={e => setInt(e.target.value)} placeholder="Una cosa que marcará este día..." /></Card>
-      <Card>
-        <Lbl>Hábitos de hoy</Lbl>
-        {Object.entries(habits || {}).map(([h, v]) => (
-          <button key={h} onClick={() => setHabits({ ...(habits || {}), [h]: !v })} className="w-full flex items-center gap-3 p-3 rounded-xl mb-2 transition-all text-left" style={{ background: v ? mod.color + "15" : "rgba(255,255,255,0.04)", border: `1px solid ${v ? mod.color + "40" : BORDER}` }}>
-            <div className="w-6 h-6 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: v ? mod.color : "rgba(255,255,255,0.1)" }}>{v && <span className="text-white text-xs font-bold">✓</span>}</div>
-            <span className={`text-sm flex-1 ${v ? "line-through text-white/30" : "text-white"}`}>{h}</span>
-          </button>
-        ))}
-      </Card>
-      <AIChat sp={buildSP("habitos", user)} color={mod.color} name={mod.label} isPremium={isPremium} onUpgrade={onUpgrade} />
     </div>
   );
 }
@@ -794,6 +809,11 @@ export default function LifeOS() {
     setSession(null); setProfile(null); setActive("dashboard");
   }
 
+  function handlePremiumActivated() {
+    setProfile(p => ({ ...p, plan: "premium" }));
+    setActive("dashboard");
+  }
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: BG }}>
       <div className="text-center">
@@ -805,25 +825,20 @@ export default function LifeOS() {
     </div>
   );
 
-  if (!session) return <AuthScreen onAuth={() => {}} />;
+  if (!session) return <AuthScreen />;
   if (showOnboarding) return <Onboarding onDone={handleOnboardingDone} />;
   if (!profile) return <div className="min-h-screen flex items-center justify-center" style={{ background: BG }}><div className="text-white/40">Cargando perfil...</div></div>;
 
-  // Normalize profile keys
-  const userProfile = {
-    ...profile,
-    objetivoFisico: profile.objetivo_fisico || profile.objetivoFisico || "Ganar músculo",
-    modulos: profile.modulos || [],
-  };
+  const userProfile = { ...profile, objetivoFisico: profile.objetivo_fisico || profile.objetivoFisico || "Ganar músculo", modulos: profile.modulos || [] };
 
   const goTo = (id) => setActive(id);
+  const commonProps = { userId: session.user.id, user: userProfile, isPremium, onUpgrade: () => goTo("premium") };
 
   const renderModule = () => {
-    const commonProps = { userId: session.user.id, user: userProfile, isPremium, onUpgrade: () => goTo("premium") };
     switch (active) {
       case "dashboard": return <Dashboard user={session.user} profile={userProfile} goTo={goTo} isPremium={isPremium} />;
       case "settings": return <Settings user={session.user} profile={userProfile} onSignOut={handleSignOut} goTo={goTo} isPremium={isPremium} />;
-      case "premium": return <PremiumScreen user={session.user} onBack={() => goTo("dashboard")} isPremium={isPremium} />;
+      case "premium": return <PremiumScreen userId={session.user.id} onBack={() => goTo("dashboard")} isPremium={isPremium} onPremiumActivated={handlePremiumActivated} />;
       case "habitos": return <Mentalidad {...commonProps} />;
       case "finanzas": return <Finanzas {...commonProps} />;
       default: return <SimpleModule moduleId={active} {...commonProps} />;
